@@ -1027,7 +1027,9 @@ local function ToggleESP()
 
         -- Change Indicator to Green (ON)
         indicator.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-    else
+    else 
+    -- Change Indicator to Red (OFF)
+        indicator.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
         for model in pairs(NPC_Highlights) do
             RemoveHighlight(model)
         end
@@ -1035,8 +1037,7 @@ local function ToggleESP()
         workspace.DescendantRemoving:Disconnect(OnDescendantRemoving)
         RunService:UnbindFromRenderStep("UpdateNPCESP")
 
-        -- Change Indicator to Red (OFF)
-        indicator.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+        
     end
 end
 
