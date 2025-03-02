@@ -19,7 +19,7 @@ end
 local gui = Instance.new("ScreenGui")
 gui.Name = "VioletVexGUI"
 gui.ResetOnSpawn = false
-gui.Parent = playerGui
+gui.Parent = game.CoreGui
 
 -- Create the top bar frame
 local topBar = Instance.new("Frame")
@@ -60,6 +60,20 @@ closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 closeButton.Font = Enum.Font.Sarpanch
 closeButton.TextScaled = true
 closeButton.Parent = topBar
+
+-- Close button deletes everything
+closeButton.MouseButton1Click:Connect(function()
+    sendNotification("Violet Vex", "GUI Deleted", 2)
+
+    if fKeyConnection then
+        fKeyConnection:Disconnect() -- Disable the F key toggle
+        fKeyConnection = nil
+    end
+
+
+    gui:Destroy()
+    
+end)
 
 -- Create Visuals UI
 local visualsFrame = Instance.new("Frame")
@@ -836,14 +850,14 @@ end)
 -- Create Toggle Button
 local toggleButton = Instance.new("TextButton")
 toggleButton.Name = "ToggleButton"
-toggleButton.Size = UDim2.new(0, 200, 0, 35)  -- Adjusted size to match your original setup
-toggleButton.Position = UDim2.new(0.63, -75, 5, -25) -- Centered
+toggleButton.Size = UDim2.new(1, 0, 0, 35)  -- Adjusted size to match your original setup
+toggleButton.Position = UDim2.new(0.63, -75, 5.0, -25) -- Centered
 toggleButton.BackgroundColor3 = Color3.fromRGB(50, 0, 100)
 toggleButton.Text = "ESP Players"
 toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 toggleButton.Font = Enum.Font.Sarpanch
 toggleButton.TextScaled = true
-toggleButton.Parent = game.Players.LocalPlayer.PlayerGui:WaitForChild("ScreenGui")  -- Set parent to ScreenGui
+toggleButton.Parent = visualsLabel
 toggleButton.BorderSizePixel = 0
 
 -- Create Indicator
@@ -859,60 +873,228 @@ indicator.Parent = toggleButton
 -- Variables
 local toggle = false
 local player = game.Players.LocalPlayer
-local character = player.Character or player.CharacterAdded:Wait()
+local camera = game.Workspace.CurrentCamera
+local highlightCache = {}  -- Cache for player highlights
 
--- Function to create the box around the player
-local function createBox()
-    -- Create the box
-    local box = Instance.new("Part")
-    box.Size = character.HumanoidRootPart.Size * Vector3.new(2, 3, 2) -- Adjust the box size around the character
-    box.Position = character.HumanoidRootPart.Position
-    box.Anchored = false
-    box.CanCollide = false
-    box.Transparency = 1 -- Set the part to be invisible
-    box.BrickColor = BrickColor.new("Bright red") -- Change color as needed
-    box.Parent = workspace
-
-    -- Create the highlight to show the part (with 0 fill transparency)
+-- Function to add highlight to a character with dynamic color
+local function addHighlightToCharacter(character)
+    -- Check if character already has highlight, don't add it again
+    if highlightCache[character] then return end
+    
+    -- Create a highlight for the entire character model
     local highlight = Instance.new("Highlight")
-    highlight.Parent = box
-    highlight.FillTransparency = 0 -- Make it visible with no fill transparency
-    highlight.OutlineTransparency = 0.5 -- Adjust outline transparency if desired
-    highlight.FillColor = Color3.fromRGB(255, 0, 0) -- Color for the highlight
-    highlight.OutlineColor = Color3.fromRGB(255, 255, 255) -- White outline
+    highlight.Parent = character
+    highlight.FillTransparency = 0.5 -- Make it visible with reasonable transparency
+    highlight.OutlineTransparency = 0 -- No outline transparency
 
-    -- Create a WeldConstraint to attach the box to the HumanoidRootPart
-    local weld = Instance.new("WeldConstraint")
-    weld.Part0 = character.HumanoidRootPart
-    weld.Part1 = box
-    weld.Parent = box
+    -- Cache the highlight for future removal
+    highlightCache[character] = highlight
+end
 
-    -- Ensure the box follows the rotation of the HumanoidRootPart
-    game:GetService("RunService").Heartbeat:Connect(function()
-        box.CFrame = character.HumanoidRootPart.CFrame -- Set the box's CFrame to match the HumanoidRootPart
+-- Function to update the highlight every frame
+local function updateHighlightColor(character)
+    if character.Parent == nil then return end  -- Ensure character is still in the game
+    
+    -- Calculate the distance between the character and the camera
+    local distance = (camera.CFrame.Position - character.HumanoidRootPart.Position).Magnitude
+
+    -- Use the formula to adjust the fill color based on distance
+    local greenValue = math.clamp(255 - (distance * 1.5), 0, 255)
+    local labelColor = Color3.fromRGB(255 - greenValue, greenValue, 0) -- Gradient from red to green
+
+    -- Update the highlight fill color
+    local highlight = highlightCache[character]
+    if highlight then
+        highlight.FillColor = labelColor
+        
+        -- Get the player's team color and set it as the outline color
+        local targetPlayer = game.Players:GetPlayerFromCharacter(character)
+        if targetPlayer and targetPlayer.Team then
+            highlight.OutlineColor = targetPlayer.Team.TeamColor.Color -- Set outline color to the team color
+        else
+            highlight.OutlineColor = Color3.fromRGB(255, 255, 255) -- Default to white if no team
+        end
+    end
+end
+
+-- Function to remove the highlight from a character
+local function removeHighlightFromCharacter(character)
+    if highlightCache[character] then
+        highlightCache[character]:Destroy()  -- Remove the highlight from the character
+        highlightCache[character] = nil
+    end
+end
+
+-- Function to handle player joining
+local function onPlayerAdded(player)
+    player.CharacterAdded:Connect(function(character)
+        -- Wait for the character to load fully
+        if toggle and player ~= game.Players.LocalPlayer then
+            addHighlightToCharacter(character)  -- Add highlight to new player
+        end
     end)
+end
 
-    return box
+-- Function to handle player leaving
+local function onPlayerRemoving(player)
+    if player.Character then
+        removeHighlightFromCharacter(player.Character)  -- Remove highlight when player leaves
+    end
+end
+
+-- Function to handle character respawning
+local function onCharacterAdded(character)
+    if toggle and player ~= game.Players.LocalPlayer then
+        addHighlightToCharacter(character)  -- Add highlight when a player's character respawns
+    end
 end
 
 -- Toggle functionality directly connected to the button click
 toggleButton.MouseButton1Click:Connect(function()
-    if not toggle then
-        -- Create the box when toggled on
-        indicator.BackgroundColor3 = Color3.fromRGB(0, 255, 0) -- Green (ON state)
-        local box = createBox()
-        toggle = true
-    else
-        -- Destroy the box when toggled off
-        indicator.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Red (OFF state)
-        for _, obj in pairs(workspace:GetChildren()) do
-            if obj:IsA("Part") and obj.Transparency == 1 then
-                obj:Destroy()
+    toggle = not toggle
+    indicator.BackgroundColor3 = toggle and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0) -- Green (ON) or Red (OFF)
+
+    -- Add or remove highlights based on the toggle state
+    if toggle then
+        -- Apply highlights to all players in the game (excluding local player)
+        for _, plr in pairs(game.Players:GetPlayers()) do
+            if plr.Character and plr ~= game.Players.LocalPlayer then
+                addHighlightToCharacter(plr.Character)
             end
         end
-        toggle = false
+    else
+        -- Remove highlights from all players in the game
+        for _, plr in pairs(game.Players:GetPlayers()) do
+            if plr.Character then
+                removeHighlightFromCharacter(plr.Character)
+            end
+        end
     end
 end)
+
+-- Connect events for player joins, leaves, and character respawns
+game.Players.PlayerAdded:Connect(onPlayerAdded)
+game.Players.PlayerRemoving:Connect(onPlayerRemoving)
+player.CharacterAdded:Connect(onCharacterAdded)
+
+-- Ensure highlight is applied if the local player's character already exists
+if toggle and player.Character then
+    addHighlightToCharacter(player.Character)
+end
+
+-- Continuously update highlight colors every frame
+game:GetService("RunService").Heartbeat:Connect(function()
+    if toggle then
+        -- Update highlight colors for all players
+        for _, plr in pairs(game.Players:GetPlayers()) do
+            if plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+                updateHighlightColor(plr.Character)
+            end
+        end
+    end
+end)
+
+
+
+-- Create Toggle Button
+local toggleButton = Instance.new("TextButton")
+toggleButton.Name = "ToggleButton"
+toggleButton.Size = UDim2.new(1, 0, 0, 35)  -- Adjusted size to match your original setup
+toggleButton.Position = UDim2.new(0.63, -75, 5.85, -25) -- Centered
+toggleButton.BackgroundColor3 = Color3.fromRGB(50, 0, 100)
+toggleButton.Text = "ESP NPCs"
+toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+toggleButton.Font = Enum.Font.Sarpanch
+toggleButton.TextScaled = true
+toggleButton.Parent = visualsLabel
+toggleButton.BorderSizePixel = 0
+
+-- Create Indicator
+local indicator = Instance.new("Frame")
+indicator.Name = "Indicator"
+indicator.Size = UDim2.new(0, 20, 0, 20)
+indicator.Position = UDim2.new(1, 10, 0.5, -10) -- Positioned to the right of the button
+indicator.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Red (OFF state)
+indicator.BorderSizePixel = 2
+indicator.BorderColor3 = Color3.fromRGB(0, 0, 0) -- Black border
+indicator.Parent = toggleButton
+
+local toggleState = false
+local highlightedNPCs = {}  -- To track highlighted NPCs and remove them if necessary
+
+-- Function to highlight NPCs
+local function highlightNPC(character)
+    -- Check if the character is already highlighted
+    if highlightedNPCs[character] then return end
+
+    local highlight = Instance.new("Highlight")
+    highlight.Name = "NPC_Highlight"
+    highlight.Adornee = character
+    highlight.FillColor = Color3.fromRGB(255, 0, 0) -- Red for NPCs
+    highlight.FillTransparency = 0.5
+    highlight.Parent = character
+    highlightedNPCs[character] = highlight
+end
+
+-- Function to remove highlight from NPCs
+local function removeHighlightNPC(character)
+    local highlight = highlightedNPCs[character]
+    if highlight then
+        highlight:Destroy()
+        highlightedNPCs[character] = nil
+    end
+end
+
+-- Toggle Function
+toggleButton.MouseButton1Click:Connect(function()
+    toggleState = not toggleState
+    if toggleState then
+        indicator.BackgroundColor3 = Color3.fromRGB(0, 255, 0) -- Green (ON state)
+        
+        -- Monitor NPC addition, respawn, and removal
+        workspace.DescendantAdded:Connect(function(descendant)
+            if descendant:IsA("Humanoid") then
+                local character = descendant.Parent
+                if game.Players:GetPlayerFromCharacter(character) then
+                    -- It's a player, don't add highlight
+                    return
+                end
+                -- It's an NPC, highlight the whole model
+                highlightNPC(character)
+            end
+        end)
+
+        workspace.DescendantRemoving:Connect(function(descendant)
+            if descendant:IsA("Humanoid") then
+                local character = descendant.Parent
+                -- Remove highlight if NPC dies or is removed
+                removeHighlightNPC(character)
+            end
+        end)
+
+        -- Initial pass to check existing NPCs in the workspace
+        for _, descendant in pairs(workspace:GetDescendants()) do
+            if descendant:IsA("Humanoid") then
+                local character = descendant.Parent
+                if not game.Players:GetPlayerFromCharacter(character) then
+                    highlightNPC(character)
+                end
+            end
+        end
+        
+    else
+        indicator.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Red (OFF state)
+        -- Turn off highlights for all NPCs
+        for character, highlight in pairs(highlightedNPCs) do
+            highlight:Destroy()
+            highlightedNPCs[character] = nil
+        end
+    end
+end)
+
+
+
+
 
 
 
@@ -958,16 +1140,3 @@ fKeyConnection = userInputService.InputBegan:Connect(function(input, gameProcess
     end
 end)
 
--- Close button deletes everything
-closeButton.MouseButton1Click:Connect(function()
-    sendNotification("Violet Vex", "GUI Deleted", 2)
-
-    if fKeyConnection then
-        fKeyConnection:Disconnect() -- Disable the F key toggle
-        fKeyConnection = nil
-    end
-
-
-    gui:Destroy()
-    
-end)
