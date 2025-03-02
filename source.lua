@@ -863,46 +863,57 @@ local character = player.Character or player.CharacterAdded:Wait()
 
 -- Function to create the box around the player
 local function createBox()
+    -- Create the box
     local box = Instance.new("Part")
-    box.Size = character.HumanoidRootPart.Size * Vector3.new(2, 2, 2) -- Adjust box size based on character size
+    box.Size = character.HumanoidRootPart.Size * Vector3.new(2, 3, 2) -- Adjust the box size around the character
     box.Position = character.HumanoidRootPart.Position
     box.Anchored = false
     box.CanCollide = false
-    box.Transparency = 0.5
+    box.Transparency = 1 -- Set the part to be invisible
     box.BrickColor = BrickColor.new("Bright red") -- Change color as needed
     box.Parent = workspace
 
-    -- Weld the box to the character
+    -- Create the highlight to show the part (with 0 fill transparency)
+    local highlight = Instance.new("Highlight")
+    highlight.Parent = box
+    highlight.FillTransparency = 0 -- Make it visible with no fill transparency
+    highlight.OutlineTransparency = 0.5 -- Adjust outline transparency if desired
+    highlight.FillColor = Color3.fromRGB(255, 0, 0) -- Color for the highlight
+    highlight.OutlineColor = Color3.fromRGB(255, 255, 255) -- White outline
+
+    -- Create a WeldConstraint to attach the box to the HumanoidRootPart
     local weld = Instance.new("WeldConstraint")
     weld.Part0 = character.HumanoidRootPart
     weld.Part1 = box
     weld.Parent = box
 
-    -- Update box position and rotation based on player movement
+    -- Ensure the box follows the rotation of the HumanoidRootPart
     game:GetService("RunService").Heartbeat:Connect(function()
-        box.Position = character.HumanoidRootPart.Position
-        box.CFrame = character.HumanoidRootPart.CFrame
+        box.CFrame = character.HumanoidRootPart.CFrame -- Set the box's CFrame to match the HumanoidRootPart
     end)
 
     return box
 end
 
--- Toggle functionality
+-- Toggle functionality directly connected to the button click
 toggleButton.MouseButton1Click:Connect(function()
     if not toggle then
         -- Create the box when toggled on
+        indicator.BackgroundColor3 = Color3.fromRGB(0, 255, 0) -- Green (ON state)
         local box = createBox()
         toggle = true
     else
         -- Destroy the box when toggled off
+        indicator.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Red (OFF state)
         for _, obj in pairs(workspace:GetChildren()) do
-            if obj:IsA("Part") and obj.Transparency == 0.5 then
+            if obj:IsA("Part") and obj.Transparency == 1 then
                 obj:Destroy()
             end
         end
         toggle = false
     end
 end)
+
 
 
 
