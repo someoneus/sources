@@ -5,6 +5,7 @@ local starterGui = game:GetService("StarterGui")
 local runService = game:GetService("RunService")
 local players = game:GetService("Players")
 local camera = workspace.CurrentCamera
+local CoreGui = game:GetService("CoreGui")
 
 -- Function to send notification
 local function sendNotification(title, text, duration)
@@ -15,13 +16,23 @@ local function sendNotification(title, text, duration)
     })
 end
 
-sendNotification("Violet Vex", "You are using Violet Vex 1.0", 5)
 
--- Create the ScreenGui
-local gui = Instance.new("ScreenGui")
+
+
+local test = CoreGui:FindFirstChild("VioletVexGUI")
+if test then
+    test:Destroy()
+    sendNotification("Violet Vex", "You are using Violet Vex 1.0", 5)
+    else
+    sendNotification("Violet Vex", "You are using Violet Vex 1.0", 5)
+end
+
+gui = Instance.new("ScreenGui")
 gui.Name = "VioletVexGUI"
 gui.ResetOnSpawn = false
 gui.Parent = game.CoreGui
+
+local RunService = game:GetService("RunService")
 
 -- Create the top bar frame
 local topBar = Instance.new("Frame")
@@ -34,16 +45,11 @@ topBar.Active = true
 topBar.Draggable = true
 topBar.Parent = gui
 
-local player = game.Players.LocalPlayer
-local screenGui = game.CoreGui:FindFirstChild("VioletVexGUI") -- Change this to your GUI name
 
-if screenGui then
-    local frame = screenGui:FindFirstChild("topBar") -- Change to your frame name
-    if frame then
-        frame.Size = UDim2.new(0.7, 0, 0.7, 0) -- 70% width & height
-        frame.Position = UDim2.new(0.05, 0, 0.05, 0) -- Centering it
-    end
-end
+
+
+
+
 
 
 -- Add rounded corners
@@ -62,7 +68,24 @@ title.Font = Enum.Font.GothamBold
 title.TextScaled = true
 title.TextStrokeTransparency = 0
 title.TextStrokeColor3 = Color3.fromRGB(50, 0, 90)
+title.ZIndex = 2 -- Ensure it's on top
 title.Parent = topBar
+
+-- Create the title shadow (subtitle)
+local subtitle = Instance.new("TextLabel")
+subtitle.Size = title.Size
+subtitle.Position = UDim2.new(0.02, 3, 0, 3) -- Slight offset to bottom-right
+subtitle.BackgroundTransparency = 1
+subtitle.Text = title.Text
+subtitle.TextColor3 = Color3.fromRGB(0, 0, 0) -- Black shadow
+subtitle.Font = title.Font
+subtitle.TextScaled = true
+subtitle.TextStrokeTransparency = 1 -- No stroke for the shadow
+subtitle.ZIndex = 1 -- Render behind the title
+subtitle.Parent = topBar -- Shadow must be parented to topBar (not title)
+
+
+
 
 -- Create the close (X) button
 local closeButton = Instance.new("TextButton")
@@ -75,18 +98,28 @@ closeButton.Font = Enum.Font.Sarpanch
 closeButton.TextScaled = true
 closeButton.Parent = topBar
 
+local confirm = false
 -- Close button deletes everything
 closeButton.MouseButton1Click:Connect(function()
-    sendNotification("Violet Vex", "GUI Deleted", 2)
+    if not confirm then
+        sendNotification("Close GUI", "Are you sure? If is then Please turn off everything and click X again", 5)
+        confirm = true
+        task.wait(5)
+        confirm = false
+        if not confirm and gui then
+            sendNotification("Close GUI", "Closing Cancelled", 2.5)
+        end
+        else
+            sendNotification("Violet Vex", "GUI Deleted", 2)
+            if fKeyConnection then
+                fKeyConnection:Disconnect() -- Disable the F key toggle
+                fKeyConnection = nil
 
-    if fKeyConnection then
-        fKeyConnection:Disconnect() -- Disable the F key toggle
-        fKeyConnection = nil
+        end
     end
-
-
-    gui:Destroy()
-    
+if confirm then
+gui:Destroy()
+end
 end)
 
 -- Create Visuals UI
@@ -112,6 +145,14 @@ visualsLabel.TextStrokeColor3 = Color3.fromRGB(50, 0, 90)
 
 
 
+-- Services
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local Camera = workspace.CurrentCamera
+
+-- Tracer Variables
+local TracerEnabled = false
+local Tracers = {}
 -- Create Toggle Button
 local toggleButton = Instance.new("TextButton")
 toggleButton.Name = "ToggleButton"
@@ -135,30 +176,13 @@ indicator.BorderSizePixel = 2
 indicator.BorderColor3 = Color3.fromRGB(0, 0, 0) -- Black border
 indicator.Parent = toggleButton
 
-local TracerEnabled = false
-local RunService = game:GetService("RunService")
-local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
-local Camera = workspace.CurrentCamera
-
-local Tracers = {}
-local Labels = {}
-
 -- Function to create tracers for players
-local function CreateTracer(target, isPlayer)
+local function CreateTracer(target)
     local line = Drawing.new("Line")
     line.Thickness = 2
     line.Transparency = 1
     line.Visible = false
     Tracers[target] = line
-
-    local label = Drawing.new("Text")
-    label.Size = 16
-    label.Center = true
-    label.Outline = true
-    label.OutlineColor = Color3.fromRGB(0, 0, 0)
-    label.Visible = false
-    Labels[target] = label
 end
 
 -- Function to remove tracers
@@ -167,24 +191,17 @@ local function RemoveTracer(target)
         Tracers[target]:Remove()
         Tracers[target] = nil
     end
-    if Labels[target] then
-        Labels[target]:Remove()
-        Labels[target] = nil
-    end
 end
 
 -- Function to handle character respawn and death
 local function OnCharacterAdded(player, character)
-    -- Remove old tracer if it exists
     RemoveTracer(player)
 
-    -- Wait until HumanoidRootPart is available
     local rootPart = character:WaitForChild("HumanoidRootPart", 10)
     if rootPart and TracerEnabled then
-        CreateTracer(player, true)
+        CreateTracer(player)
     end
 
-    -- Ensure tracer gets removed when player dies
     local humanoid = character:FindFirstChildOfClass("Humanoid")
     if humanoid then
         humanoid.Died:Connect(function()
@@ -193,7 +210,7 @@ local function OnCharacterAdded(player, character)
     end
 end
 
--- Function to update tracers based on distance
+-- Function to update tracers
 local function UpdateTracers()
     if not TracerEnabled then return end
 
@@ -208,28 +225,12 @@ local function UpdateTracers()
                 local greenValue = math.clamp(255 - (distance * 1.25), 0, 255)
                 local tracerColor = Color3.fromRGB(255 - greenValue, greenValue, 0)
 
-                -- Update tracer color based on distance
                 line.Color = tracerColor
                 line.From = screenCenter
                 line.To = Vector2.new(rootPos.X, rootPos.Y)
                 line.Visible = true
-
-                -- Update label size and color based on distance
-                local label = Labels[target]
-                if label then
-                    local scale = math.clamp(16 - (distance / 10), 8, 16)
-                    label.Size = scale
-                    label.Position = Vector2.new(rootPos.X, rootPos.Y - 20)
-                    label.Text = string.format("%s %.1f studs", target.Name, distance)
-                    label.Color = tracerColor
-                    label.OutlineColor = Color3.fromRGB(0, 0, 0)
-                    label.Visible = true
-                end
             else
                 line.Visible = false
-                if Labels[target] then
-                    Labels[target].Visible = false
-                end
             end
         else
             RemoveTracer(target)
@@ -237,15 +238,13 @@ local function UpdateTracers()
     end
 end
 
--- Function to handle newly joined or respawned players
+-- Function to handle new players
 local function HandlePlayer(player)
-    if player ~= LocalPlayer then
-        -- Listen for character spawns
+    if player ~= Players.LocalPlayer then
         player.CharacterAdded:Connect(function(character)
             OnCharacterAdded(player, character)
         end)
 
-        -- If the player already has a character, process it
         if player.Character then
             OnCharacterAdded(player, player.Character)
         end
@@ -257,33 +256,26 @@ toggleButton.MouseButton1Click:Connect(function()
     TracerEnabled = not TracerEnabled
 
     if TracerEnabled then
-        -- Create tracers for all players (except LocalPlayer)
         for _, player in pairs(Players:GetPlayers()) do
             HandlePlayer(player)
         end
 
-        -- Update tracers every frame
         RunService:BindToRenderStep("UpdatePlayerTracers", Enum.RenderPriority.Camera.Value, UpdateTracers)
-
-        -- Change indicator color to green (ON state)
-        indicator.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+        indicator.BackgroundColor3 = Color3.fromRGB(0, 255, 0) -- Green (ON)
     else
-        -- Remove tracers when toggled off
+        indicator.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Red (OFF)
         RunService:UnbindFromRenderStep("UpdatePlayerTracers")
         for target in pairs(Tracers) do
             RemoveTracer(target)
         end
-
-        -- Change indicator color to red (OFF state)
-        indicator.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+        
     end
 end)
 
 -- Ensure tracers update when players join or respawn
 Players.PlayerAdded:Connect(HandlePlayer)
-Players.PlayerRemoving:Connect(function(player)
-    RemoveTracer(player)
-end)
+Players.PlayerRemoving:Connect(RemoveTracer)
+
 
 
 
@@ -515,7 +507,7 @@ local function updateLabel(character)
                 -- Calculate color: from red (far) to green (close)
                 local greenValue = math.clamp(255 - (distance * 1.5), 0, 255)
                 local labelColor = Color3.fromRGB(255 - greenValue, greenValue, 0)
-                textLabel.Text = targetName .. " " .. math.floor(distance) .. " studs"
+                textLabel.Text = targetName .. " ┃ " .. math.floor(distance) .. " studs"
                 textLabel.TextColor3 = labelColor
             end
         end
@@ -606,7 +598,15 @@ end)
 
 
 
--- Create Toggle Button
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+
+local isLabelEnabled = false  -- Toggle state
+local npcModels = {}  -- Table to track NPC models
+
+-- Create Toggle Button 
 local toggleButton = Instance.new("TextButton")
 toggleButton.Name = "ToggleButton"
 toggleButton.Size = UDim2.new(1, 0, 0, 35)
@@ -629,13 +629,6 @@ indicator.BorderSizePixel = 2
 indicator.BorderColor3 = Color3.fromRGB(0, 0, 0) -- Black border
 indicator.Parent = toggleButton
 
-local player = game.Players.LocalPlayer
-local camera = game.Workspace.CurrentCamera
-local RunService = game:GetService("RunService")
-
-local isLabelEnabled = false  -- Toggle state
-local npcModels = {}  -- Table to track NPC models
-
 -- Function to create the text label above an NPC's head
 local function createLabel(model)
     if not model then return end
@@ -647,8 +640,8 @@ local function createLabel(model)
 
     local billboardGui = Instance.new("BillboardGui")
     billboardGui.Name = "NPCLabel"
-    billboardGui.Adornee = head
-    billboardGui.Parent = head
+    billboardGui.Adornee = hrp
+    billboardGui.Parent = hrp
     billboardGui.Size = UDim2.new(16, 0, 4, 0)
     billboardGui.StudsOffset = Vector3.new(0, 5, 0)
     billboardGui.AlwaysOnTop = true
@@ -666,19 +659,18 @@ end
 -- Function to update the NPC label
 local function updateLabel(model)
     if not model then return end
-    local head = model:FindFirstChild("Head")
     local hrp = model:FindFirstChild("HumanoidRootPart")
-    if head and hrp and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-        local distance = (hrp.Position - player.Character.HumanoidRootPart.Position).Magnitude
+    if head and hrp and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        local distance = (hrp.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
         local targetName = model.Name
 
-        local billboardGui = head:FindFirstChild("NPCLabel")
+        local billboardGui = hrp:FindFirstChild("NPCLabel")
         if billboardGui then
             local textLabel = billboardGui:FindFirstChildOfClass("TextLabel")
             if textLabel then
                 local greenValue = math.clamp(255 - (distance * 1.5), 0, 255)
                 local labelColor = Color3.fromRGB(255 - greenValue, greenValue, 0)
-                textLabel.Text = targetName .. " " .. math.floor(distance) .. " studs"
+                textLabel.Text = targetName .. " ┃ " .. math.floor(distance) .. " studs"
                 textLabel.TextColor3 = labelColor
             end
         end
@@ -697,75 +689,68 @@ local function removeLabel(model)
     end
 end
 
--- Toggle button logic (toggleButton and indicator are assumed to exist)
-toggleButton.MouseButton1Click:Connect(function()
-    if isLabelEnabled then
-        indicator.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- OFF indicator
-        isLabelEnabled = false
-        for model, _ in pairs(npcModels) do
-            removeLabel(model)
-        end
-    else
-        indicator.BackgroundColor3 = Color3.fromRGB(0, 255, 0) -- ON indicator
-        isLabelEnabled = true
-        for model, _ in pairs(npcModels) do
-            createLabel(model)
+-- NPC Detection System (Ensures ALL NPCs are detected properly)
+local function detectExistingNPCs()
+    for _, character in pairs(workspace:GetChildren()) do
+        if character:IsA("Model") then
+            local humanoid = character:FindFirstChildOfClass("Humanoid")
+            if humanoid and not Players:GetPlayerFromCharacter(character) then
+                npcModels[character] = true
+                if isLabelEnabled then
+                    createLabel(character)
+                end
+            end
         end
     end
-end)
+end
 
--- Helper: Try adding an NPC model after a short delay
-local function tryAddNPC(model)
-    delay(0.1, function()
-        if model and model:FindFirstChild("Humanoid") then
-            -- Use humanoid.Parent's Name for NPC detection
-            if not game.Players:FindFirstChild(model.Name) then
-                npcModels[model] = true
-                model:WaitForChild("Head", 10)
-                model:WaitForChild("HumanoidRootPart", 10)
+local function tryAddNPC(character)
+    task.spawn(function()
+        if character:IsA("Model") and character:FindFirstChildOfClass("Humanoid") then
+            local humanoid = character:FindFirstChildOfClass("Humanoid")
+            if humanoid and not Players:GetPlayerFromCharacter(character) then
+                npcModels[character] = true
+                character:WaitForChild("Head", 10)
+                character:WaitForChild("HumanoidRootPart", 10)
                 if isLabelEnabled then
-                    createLabel(model)
+                    createLabel(character)
                 end
             end
         end
     end)
 end
 
--- Initial scan: add any existing NPCs based on Humanoid.Parent
-for _, humanoid in pairs(workspace:GetDescendants()) do
-    if humanoid:IsA("Humanoid") then
-        local model = humanoid.Parent
-        if model and not game.Players:FindFirstChild(model.Name) then
-            npcModels[model] = true
-            if isLabelEnabled then
-                createLabel(model)
-            end
-        end
-    end
-end
+detectExistingNPCs()
 
--- Listen for new Humanoid instances to detect new NPCs
-workspace.DescendantAdded:Connect(function(descendant)
-    if descendant:IsA("Humanoid") then
-        local model = descendant.Parent
-        if model and not game.Players:FindFirstChild(model.Name) then
-            tryAddNPC(model)
-        end
+workspace.ChildAdded:Connect(function(child)
+    tryAddNPC(child)
+end)
+
+workspace.ChildRemoved:Connect(function(child)
+    if npcModels[child] then
+        removeLabel(child)
+        npcModels[child] = nil
     end
 end)
 
--- Listen for removal of Humanoid instances to clean up NPC table
-workspace.DescendantRemoving:Connect(function(descendant)
-    if descendant:IsA("Humanoid") then
-        local model = descendant.Parent
-        if model and npcModels[model] then
+-- Toggle button logic
+toggleButton.MouseButton1Click:Connect(function()
+    isLabelEnabled = not isLabelEnabled
+
+    if isLabelEnabled then
+        indicator.BackgroundColor3 = Color3.fromRGB(0, 255, 0) -- ON indicator
+        for model, _ in pairs(npcModels) do
+            createLabel(model)
+        end
+    else
+        indicator.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- OFF indicator
+        for model, _ in pairs(npcModels) do
             removeLabel(model)
-            npcModels[model] = nil
         end
     end
 end)
 
--- Update labels every frame using RenderStepped over npcModels
+-- Update labels every frame using RenderStepped
 RunService.RenderStepped:Connect(function()
     if isLabelEnabled then
         for model, _ in pairs(npcModels) do
@@ -777,6 +762,7 @@ RunService.RenderStepped:Connect(function()
         end
     end
 end)
+
 
 
 -- Create Toggle Button
@@ -928,85 +914,24 @@ end)
 
 
 
+-- Services
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 
-local NPC_Highlights = {} -- Store NPC highlights
-local HighlightEnabled = false
+local NPC_Boxes = {} -- Store 2D boxes for NPCs
+local NPC_Lines = {} -- Store direction lines
+local NPC_FacingLines = {} -- Store NPC facing direction lines
+local ESP_Enabled = false
+local ConnectionAdded
+local ConnectionRemoving
 
-local descendantAddedConnection
-local descendantRemovingConnection
-
-local function CreateHighlight(model)
-    if NPC_Highlights[model] then return end -- Avoid duplicate highlights
-
-    local highlight = Instance.new("Highlight")
-    highlight.Parent = model
-    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-    highlight.OutlineTransparency = 0 -- Visible outline
-    highlight.FillTransparency = 0.25  -- Semi-transparent fill
-
-    NPC_Highlights[model] = highlight
-end
-
-local function RemoveHighlight(model)
-    if NPC_Highlights[model] then
-        NPC_Highlights[model]:Destroy()
-        NPC_Highlights[model] = nil
-    end
-end
-
-local function UpdateHighlights()
-    if not HighlightEnabled then return end
-
-    for model, highlight in pairs(NPC_Highlights) do
-        if model and model.Parent and model:FindFirstChild("HumanoidRootPart") then
-            local rootPart = model.HumanoidRootPart
-            local humanoid = model:FindFirstChildOfClass("Humanoid")
-
-            if humanoid then
-                local healthPercent = humanoid.Health / humanoid.MaxHealth
-                local distance = (Camera.CFrame.Position - rootPart.Position).Magnitude
-
-                -- Fill color (distance-based: Green when close, Red when far)
-                local greenValue = math.clamp(255 - (distance * 1.25), 0, 255)
-                highlight.FillColor = Color3.fromRGB(255 - greenValue, greenValue, 0)
-
-                -- Outline color (health-based: Green at full health, Red at low health)
-                local outlineRed = 255 - (healthPercent * 255)
-                local outlineGreen = healthPercent * 255
-                highlight.OutlineColor = Color3.fromRGB(outlineRed, outlineGreen, 0)
-            end
-        else
-            RemoveHighlight(model)
-        end
-    end
-end
-
-local function OnDescendantAdded(descendant)
-    if not HighlightEnabled then return end -- Prevent ESP from applying when disabled
-    if descendant:IsA("Humanoid") then
-        local character = descendant.Parent
-        if character and not Players:GetPlayerFromCharacter(character) then
-            CreateHighlight(character)
-        end
-    end
-end
-
-local function OnDescendantRemoving(descendant)
-    if descendant:IsA("Humanoid") then
-        local character = descendant.Parent
-        RemoveHighlight(character)
-    end
-end
-
--- Create Toggle Button
+-- UI Components
 local toggleButton = Instance.new("TextButton")
 toggleButton.Name = "ToggleButton"
-toggleButton.Size = UDim2.new(1, 0, 0, 35)  -- Adjusted size to match your original setup
-toggleButton.Position = UDim2.new(0.63, -75, 5.85, -25) -- Centered
+toggleButton.Size = UDim2.new(1, 0, 0, 35)
+toggleButton.Position = UDim2.new(0.63, -75, 5.85, -25)
 toggleButton.BackgroundColor3 = Color3.fromRGB(50, 0, 100)
 toggleButton.Text = "ESP NPCs"
 toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -1015,63 +940,454 @@ toggleButton.TextScaled = true
 toggleButton.Parent = visualsLabel
 toggleButton.BorderSizePixel = 0
 
--- Create Indicator
 local indicator = Instance.new("Frame")
 indicator.Name = "Indicator"
 indicator.Size = UDim2.new(0, 20, 0, 20)
-indicator.Position = UDim2.new(1, 10, 0.5, -10) -- Positioned to the right of the button
-indicator.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Red (OFF state)
+indicator.Position = UDim2.new(1, 10, 0.5, -10)
+indicator.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Default Red (OFF)
 indicator.BorderSizePixel = 2
-indicator.BorderColor3 = Color3.fromRGB(0, 0, 0) -- Black border
+indicator.BorderColor3 = Color3.fromRGB(0, 0, 0)
 indicator.Parent = toggleButton
 
-local function ToggleESP()
-    HighlightEnabled = not HighlightEnabled
-    
-    if HighlightEnabled then
-        for _, descendant in ipairs(workspace:GetDescendants()) do
-            if descendant:IsA("Humanoid") then
-                local character = descendant.Parent
-                if character and not Players:GetPlayerFromCharacter(character) then
-                    CreateHighlight(character)
+-- Function to create ESP elements
+local function CreateESPElements(model)
+    if NPC_Boxes[model] then return end -- Avoid duplicates
+
+    -- Box
+    local box = Drawing.new("Square")
+    box.Thickness = 2
+    box.Color = Color3.fromRGB(0, 255, 0)
+    box.Filled = false
+    box.Visible = false
+    box.OutlineColor = Color3.fromRGB(0, 0, 0)
+    box.OutlineTransparency = 0
+
+    -- Direction Line (Unused but can be used for top-down tracking)
+    local line = Drawing.new("Line")
+    line.Thickness = 2
+    line.Color = Color3.fromRGB(255, 0, 0)
+    line.Visible = false
+
+    -- Facing Line (Shows NPC's facing direction)
+    local facingLine = Drawing.new("Line")
+    facingLine.Thickness = 3
+    facingLine.Color = Color3.fromRGB(255, 0, 0)
+    facingLine.Visible = false
+
+    NPC_Boxes[model] = box
+    NPC_Lines[model] = line
+    NPC_FacingLines[model] = facingLine
+
+    -- Cleanup ESP when NPC dies
+    local humanoid = model:FindFirstChildOfClass("Humanoid")
+    if humanoid then
+        humanoid.Died:Connect(function()
+            RemoveESPElements(model)
+        end)
+    end
+end
+
+-- Function to remove ESP elements
+local function RemoveESPElements(model)
+    if NPC_Boxes[model] then
+        NPC_Boxes[model]:Remove()
+        NPC_Boxes[model] = nil
+    end
+    if NPC_Lines[model] then
+        NPC_Lines[model]:Remove()
+        NPC_Lines[model] = nil
+    end
+    if NPC_FacingLines[model] then
+        NPC_FacingLines[model]:Remove()
+        NPC_FacingLines[model] = nil
+    end
+end
+
+-- Function to update ESP
+local function UpdateESP()
+    if not ESP_Enabled then return end
+
+    for model, box in pairs(NPC_Boxes) do
+        if model and model.Parent and model:FindFirstChild("HumanoidRootPart") then
+            local rootPart = model.HumanoidRootPart
+            local head = model:FindFirstChild("Head") or rootPart
+            local humanoid = model:FindFirstChildOfClass("Humanoid")
+
+            if humanoid then
+                -- Define NPC bounding box
+                local boundingBoxCorners = {
+                    Vector3.new(-2, 3, -1),
+                    Vector3.new(2, 3, -1),
+                    Vector3.new(-2, -3, -1),
+                    Vector3.new(2, -3, -1),
+                    Vector3.new(-2, 3, 1),
+                    Vector3.new(2, 3, 1),
+                    Vector3.new(-2, -3, 1),
+                    Vector3.new(2, -3, 1)
+                }
+
+                local minX, minY = math.huge, math.huge
+                local maxX, maxY = -math.huge, -math.huge
+                local onScreen = false
+
+                for _, corner in ipairs(boundingBoxCorners) do
+                    local worldPos = rootPart.CFrame:PointToWorldSpace(corner)
+                    local screenPos, isOnScreen = Camera:WorldToViewportPoint(worldPos)
+                    if isOnScreen then
+                        onScreen = true
+                        minX = math.min(minX, screenPos.X)
+                        minY = math.min(minY, screenPos.Y)
+                        maxX = math.max(maxX, screenPos.X)
+                        maxY = math.max(maxY, screenPos.Y)
+                    end
+                end
+
+                if onScreen then
+                    box.Visible = true
+                    box.Size = Vector2.new(maxX - minX, maxY - minY)
+                    box.Position = Vector2.new(minX, minY)
+                else
+                    box.Visible = false
+                end
+
+                -- Update facing direction line
+                local startPos = head.Position
+                local endPos = startPos + (head.CFrame.LookVector * 2) -- Extend 10 studs in front
+                local screenStart, isStartOnScreen = Camera:WorldToViewportPoint(startPos)
+                local screenEnd, isEndOnScreen = Camera:WorldToViewportPoint(endPos)
+
+                if isStartOnScreen and isEndOnScreen then
+                    NPC_FacingLines[model].Visible = true
+                    NPC_FacingLines[model].From = Vector2.new(screenStart.X, screenStart.Y)
+                    NPC_FacingLines[model].To = Vector2.new(screenEnd.X, screenEnd.Y)
+                else
+                    NPC_FacingLines[model].Visible = false
                 end
             end
-        end
-
-        -- Store event connections so we can disconnect them later
-        descendantAddedConnection = workspace.DescendantAdded:Connect(OnDescendantAdded)
-        descendantRemovingConnection = workspace.DescendantRemoving:Connect(OnDescendantRemoving)
-
-        RunService:BindToRenderStep("UpdateNPCESP", Enum.RenderPriority.Camera.Value, UpdateHighlights)
-
-        -- Change Indicator to Green (ON)
-        indicator.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-    else
-        -- Change Indicator to Red (OFF)
-        indicator.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-
-        -- Properly disconnect events if they exist
-        if descendantAddedConnection then
-            descendantAddedConnection:Disconnect()
-            descendantAddedConnection = nil
-        end
-        if descendantRemovingConnection then
-            descendantRemovingConnection:Disconnect()
-            descendantRemovingConnection = nil
-        end
-
-        -- Unbind update function
-        RunService:UnbindFromRenderStep("UpdateNPCESP")
-
-        -- Destroy all highlights
-        for model in pairs(NPC_Highlights) do
-            RemoveHighlight(model)
+        else
+            RemoveESPElements(model)
         end
     end
 end
 
--- Connect button click to toggle ESP and indicator
-toggleButton.MouseButton1Click:Connect(ToggleESP)
+-- Function to handle NPC tracking
+local function OnDescendantAdded(descendant)
+    if not ESP_Enabled then return end
+    if descendant:IsA("Humanoid") then
+        local character = descendant.Parent
+        if character and not Players:GetPlayerFromCharacter(character) then
+            CreateESPElements(character)
+        end
+    end
+end
+
+local function OnDescendantRemoving(descendant)
+    if descendant:IsA("Humanoid") then
+        local character = descendant.Parent
+        RemoveESPElements(character)
+    end
+end
+
+-- Toggle ESP function
+local function ToggleESP()
+    ESP_Enabled = not ESP_Enabled
+
+    if ESP_Enabled then
+        -- Enable ESP
+        for _, descendant in ipairs(workspace:GetDescendants()) do
+            if descendant:IsA("Humanoid") then
+                local character = descendant.Parent
+                if character and not Players:GetPlayerFromCharacter(character) then
+                    CreateESPElements(character)
+                end
+            end
+        end
+
+        -- Connect events
+        ConnectionAdded = workspace.DescendantAdded:Connect(OnDescendantAdded)
+        ConnectionRemoving = workspace.DescendantRemoving:Connect(OnDescendantRemoving)
+
+        -- Start updating ESP
+        RunService:BindToRenderStep("UpdateNPCESP", Enum.RenderPriority.Camera.Value, UpdateESP)
+    else
+        -- Disable ESP
+        RunService:UnbindFromRenderStep("UpdateNPCESP")
+
+        -- Disconnect events
+        if ConnectionAdded then ConnectionAdded:Disconnect() end
+        if ConnectionRemoving then ConnectionRemoving:Disconnect() end
+
+        -- Remove all ESP elements
+        for model in pairs(NPC_Boxes) do
+            RemoveESPElements(model)
+        end
+    end
+end
+
+local esptoggle = false
+-- Connect button to toggle ESP
+toggleButton.MouseButton1Click:Connect(function()
+    esptoggle = not esptoggle
+    ToggleESP()
+    if esptoggle then
+        indicator.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+        else indicator.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+    end
+end)
+
+
+
+
+
+
+
+
+
+-- Services
+local Lighting = game:GetService("Lighting")
+local RunService = game:GetService("RunService")
+
+-- UI Components
+local fullbrightButton = Instance.new("TextButton")
+fullbrightButton.Name = "FullbrightButton"
+fullbrightButton.Size = UDim2.new(1, 0, 0, 35)
+fullbrightButton.Position = UDim2.new(0.63, -75, 6.65, -25) -- Adjusted position
+fullbrightButton.BackgroundColor3 = Color3.fromRGB(50, 0, 100)
+fullbrightButton.Text = "Fullbright"
+fullbrightButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+fullbrightButton.Font = Enum.Font.Sarpanch
+fullbrightButton.TextScaled = true
+fullbrightButton.Parent = visualsLabel
+fullbrightButton.BorderSizePixel = 0
+
+local fullbrightIndicator = Instance.new("Frame")
+fullbrightIndicator.Name = "FullbrightIndicator"
+fullbrightIndicator.Size = UDim2.new(0, 20, 0, 20)
+fullbrightIndicator.Position = UDim2.new(1, 10, 0.5, -10)
+fullbrightIndicator.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Default red (off)
+fullbrightIndicator.BorderSizePixel = 2
+fullbrightIndicator.BorderColor3 = Color3.fromRGB(0, 0, 0)
+fullbrightIndicator.Parent = fullbrightButton
+
+-- Variables
+local fullbrightEnabled = false
+local fullbrightConnection
+local saveAmbient
+local saveOutdoorAmbient
+local saveBrightness
+local saveExposure
+
+-- save settings
+local function saveSettings()
+    saveAmbient = Lighting.Ambient
+    saveOutdoorAmbient = Lighting.OutdoorAmbient
+    saveBrightness = Lighting.Brightness
+    saveExposure = Lighting.ExposureCompensation
+end
+
+-- Fullbright Functions
+local function applyFullbright()
+    Lighting.Ambient = Color3.new(0.7, 0.7, 0.7)  -- Softer ambient light
+    Lighting.OutdoorAmbient = Color3.new(0.7, 0.7, 0.7)  -- Softer outdoor light
+    Lighting.Brightness = 3  -- Reduced brightness
+    Lighting.ExposureCompensation = 0.5  -- Prevents overexposure
+end
+
+local function removeFullbright()
+    Lighting.Ambient = saveAmbient
+    Lighting.OutdoorAmbient = saveOutdoorAmbient
+    Lighting.Brightness = saveBrightness
+    Lighting.ExposureCompensation = saveExposure
+end
+
+
+local function checkFullbright()
+    if fullbrightEnabled then
+        if Lighting.Ambient ~= Color3.new(0.7, 0.7, 0.7) or 
+           Lighting.OutdoorAmbient ~= Color3.new(0.7, 0.7, 0.7) or
+           Lighting.Brightness ~= 3 or
+           Lighting.ExposureCompensation ~= 0.5 then
+            applyFullbright() -- Reapply if the game removes fullbright
+        end
+    end
+end
+
+local function updateFullbrightIndicator()
+    if fullbrightEnabled then
+        fullbrightIndicator.BackgroundColor3 = Color3.fromRGB(0, 255, 0) -- Green (on)
+    else
+        fullbrightIndicator.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Red (off)
+    end
+end
+
+local function toggleFullbright()
+    fullbrightEnabled = not fullbrightEnabled
+    updateFullbrightIndicator()
+
+    if fullbrightEnabled then
+        applyFullbright()
+        if not fullbrightConnection then
+            fullbrightConnection = RunService.RenderStepped:Connect(checkFullbright) -- Constantly checks if fullbright is removed
+        end
+    else
+        removeFullbright()
+        if fullbrightConnection then
+            fullbrightConnection:Disconnect()
+            fullbrightConnection = nil
+        end
+    end
+end
+
+-- Connect Toggle Button
+fullbrightButton.MouseButton1Click:Connect(toggleFullbright)
+
+-- Ensure indicator updates at the start
+updateFullbrightIndicator()
+
+
+
+
+
+
+
+-- Services
+local Lighting = game:GetService("Lighting")
+local RunService = game:GetService("RunService")
+
+-- UI Components
+local noFogButton = Instance.new("TextButton")
+noFogButton.Name = "NoFogButton"
+noFogButton.Size = UDim2.new(1, 0, 0, 35)
+noFogButton.Position = UDim2.new(0.63, -75, 7.45, -25) -- Adjusted position
+noFogButton.BackgroundColor3 = Color3.fromRGB(50, 0, 100)
+noFogButton.Text = "NoFog"
+noFogButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+noFogButton.Font = Enum.Font.Sarpanch
+noFogButton.TextScaled = true
+noFogButton.Parent = visualsLabel
+noFogButton.BorderSizePixel = 0
+
+local fogIndicator = Instance.new("Frame")
+fogIndicator.Name = "FogIndicator"
+fogIndicator.Size = UDim2.new(0, 20, 0, 20)
+fogIndicator.Position = UDim2.new(1, 10, 0.5, -10)
+fogIndicator.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Default red (off)
+fogIndicator.BorderSizePixel = 2
+fogIndicator.BorderColor3 = Color3.fromRGB(0, 0, 0)
+fogIndicator.Parent = noFogButton
+
+-- Variables
+local noFogEnabled = false
+local noFogConnection
+local savedFogStart
+local savedFogEnd
+local hasSavedFog = false -- Track if fog has been saved
+
+-- NoFog Functions
+local function removeFog()
+    print("Removing fog...") -- Debug message
+    Lighting.FogStart = 1e6
+    Lighting.FogEnd = 1e6
+    print("FogStart set to:", Lighting.FogStart, "FogEnd set to:", Lighting.FogEnd)
+end
+
+local function restoreFog()
+    if hasSavedFog then
+        Lighting.FogStart = savedFogStart
+        Lighting.FogEnd = savedFogEnd
+        print("Restoring fog: Start =", savedFogStart, "End =", savedFogEnd)
+    else
+        print("No saved fog settings to restore!")
+    end
+end
+
+local function checkNoFog()
+    if noFogEnabled and (Lighting.FogEnd < 1e6 or Lighting.FogStart < 1e6) then
+        print("Reapplying NoFog...")
+        removeFog()  -- Reapply NoFog if the game tries to add fog back
+    end
+end
+
+local function updateFogIndicator()
+    fogIndicator.BackgroundColor3 = noFogEnabled and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
+end
+
+local function toggleNoFog()
+    noFogEnabled = not noFogEnabled
+    updateFogIndicator()
+
+    if noFogEnabled then
+        -- Only save fog settings if they haven't been saved yet
+        if not hasSavedFog then
+            savedFogStart = Lighting.FogStart
+            savedFogEnd = Lighting.FogEnd
+            hasSavedFog = true
+            print("Saved fog settings: Start =", savedFogStart, "End =", savedFogEnd)
+        end
+
+        removeFog()
+
+        -- Continuously ensure fog is off
+        if not noFogConnection then
+            noFogConnection = RunService.RenderStepped:Connect(checkNoFog)
+        end
+    else
+        restoreFog()
+
+        -- Stop checking fog settings
+        if noFogConnection then
+            noFogConnection:Disconnect()
+            noFogConnection = nil
+        end
+    end
+end
+
+-- Connect Toggle Button
+noFogButton.MouseButton1Click:Connect(toggleNoFog)
+
+-- Ensure indicator updates at the start
+updateFogIndicator()
+
+
+-- Create Toggle Button
+local traceButton = Instance.new("TextButton")
+traceButton.Name = "TraceToggleButton"
+traceButton.Size = UDim2.new(0, 100, 0, 40) -- Adjust size as needed
+traceButton.Position = UDim2.new(0.63, -75, 7.45, -25) -- Centered
+traceButton.BackgroundColor3 = Color3.fromRGB(50, 0, 100) -- Default Button Color
+traceButton.Text = "Trace"
+traceButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+traceButton.Font = Enum.Font.Sarpanch
+traceButton.TextScaled = true
+traceButton.Parent = gui
+traceButton.BorderSizePixel = 0
+
+-- Create Indicator
+local traceIndicator = Instance.new("Frame")
+traceIndicator.Name = "TraceIndicator"
+traceIndicator.Size = UDim2.new(0, 20, 0, 20)
+traceIndicator.Position = UDim2.new(1, 10, 0.5, -10) -- Next to button
+traceIndicator.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Default Red (Off)
+traceIndicator.BorderSizePixel = 2
+traceIndicator.BorderColor3 = Color3.fromRGB(0, 0, 0)
+traceIndicator.Parent = traceButton
+
+-- Variable
+local traceactive = false
+
+-- Function to Toggle
+local function toggleTrace()
+    traceactive = not traceactive -- Toggle value
+
+    if traceactive then
+        traceIndicator.BackgroundColor3 = Color3.fromRGB(0, 255, 0) -- Green (On)
+    else
+        traceIndicator.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Red (Off)
+    end
+end
+
+-- Connect Button Click
+traceButton.MouseButton1Click:Connect(toggleTrace)
 
 
 
@@ -1101,15 +1417,15 @@ toggleButton.MouseButton1Click:Connect(ToggleESP)
 
 
 
--- Assuming 'sendNotification' function and 'gui' are set up somewhere earlier in the script.
+
+
+
 
 local userInputService = game:GetService("UserInputService")
-local gui = game.Players.LocalPlayer:WaitForChild("PlayerGui"):WaitForChild("YourGuiInstance") -- Adjust with your GUI's name
+local player = game.Players.LocalPlayer
 local isVisible = true
-local fKeyConnection -- Store F key connection
 
 local function sendNotification(title, text, duration)
-    -- Your notification code goes here (make sure it's working correctly)
     game:GetService("StarterGui"):SetCore("SendNotification", {
         Title = title;
         Text = text;
@@ -1118,25 +1434,19 @@ local function sendNotification(title, text, duration)
 end
 
 local function toggleGUI()
-    if not gui or not gui.Parent then return end
+    if not gui then return end -- Ensure GUI exists
     isVisible = not isVisible
     gui.Enabled = isVisible
 
-    if isVisible then
-        sendNotification("Violet Vex", "GUI Unhidden", 2)
-    else
-        sendNotification("Violet Vex", "GUI Hidden", 2)
-    end
+    sendNotification("Violet Vex", isVisible and "GUI Unhidden" or "GUI Hidden", 2)
 end
 
--- Listen for the F key press
-fKeyConnection = userInputService.InputBegan:Connect(function(input, gameProcessed)
-    if not gameProcessed and input.KeyCode == Enum.KeyCode.F then
+-- Listen for the F key press (Only Local Player)
+userInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end -- Ignore if the game already handled the input
+    if input.KeyCode == Enum.KeyCode.F then
         toggleGUI()
     end
 end)
 
--- Clean up when the script is finished or when you no longer need the connection
--- For example:
--- fKeyConnection:Disconnect() 
 
