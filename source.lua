@@ -34,6 +34,18 @@ topBar.Active = true
 topBar.Draggable = true
 topBar.Parent = gui
 
+local player = game.Players.LocalPlayer
+local screenGui = game.CoreGui:FindFirstChild("VioletVexGUI") -- Change this to your GUI name
+
+if screenGui then
+    local frame = screenGui:FindFirstChild("topBar") -- Change to your frame name
+    if frame then
+        frame.Size = UDim2.new(0.7, 0, 0.7, 0) -- 70% width & height
+        frame.Position = UDim2.new(0.05, 0, 0.05, 0) -- Centering it
+    end
+end
+
+
 -- Add rounded corners
 local corner = Instance.new("UICorner")
 corner.CornerRadius = UDim.new(0, 10)
@@ -503,7 +515,7 @@ local function updateLabel(character)
                 -- Calculate color: from red (far) to green (close)
                 local greenValue = math.clamp(255 - (distance * 1.5), 0, 255)
                 local labelColor = Color3.fromRGB(255 - greenValue, greenValue, 0)
-                textLabel.Text = targetName .. "\n" .. math.floor(distance) .. " studs"
+                textLabel.Text = targetName .. " " .. math.floor(distance) .. " studs"
                 textLabel.TextColor3 = labelColor
             end
         end
@@ -666,7 +678,7 @@ local function updateLabel(model)
             if textLabel then
                 local greenValue = math.clamp(255 - (distance * 1.5), 0, 255)
                 local labelColor = Color3.fromRGB(255 - greenValue, greenValue, 0)
-                textLabel.Text = targetName .. "\n" .. math.floor(distance) .. " studs"
+                textLabel.Text = targetName .. " " .. math.floor(distance) .. " studs"
                 textLabel.TextColor3 = labelColor
             end
         end
@@ -924,6 +936,9 @@ local Camera = workspace.CurrentCamera
 local NPC_Highlights = {} -- Store NPC highlights
 local HighlightEnabled = false
 
+local descendantAddedConnection
+local descendantRemovingConnection
+
 local function CreateHighlight(model)
     if NPC_Highlights[model] then return end -- Avoid duplicate highlights
 
@@ -971,6 +986,7 @@ local function UpdateHighlights()
 end
 
 local function OnDescendantAdded(descendant)
+    if not HighlightEnabled then return end -- Prevent ESP from applying when disabled
     if descendant:IsA("Humanoid") then
         local character = descendant.Parent
         if character and not Players:GetPlayerFromCharacter(character) then
@@ -1021,28 +1037,42 @@ local function ToggleESP()
                 end
             end
         end
-        workspace.DescendantAdded:Connect(OnDescendantAdded)
-        workspace.DescendantRemoving:Connect(OnDescendantRemoving)
+
+        -- Store event connections so we can disconnect them later
+        descendantAddedConnection = workspace.DescendantAdded:Connect(OnDescendantAdded)
+        descendantRemovingConnection = workspace.DescendantRemoving:Connect(OnDescendantRemoving)
+
         RunService:BindToRenderStep("UpdateNPCESP", Enum.RenderPriority.Camera.Value, UpdateHighlights)
 
         -- Change Indicator to Green (ON)
         indicator.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-    else 
-    -- Change Indicator to Red (OFF)
+    else
+        -- Change Indicator to Red (OFF)
         indicator.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+
+        -- Properly disconnect events if they exist
+        if descendantAddedConnection then
+            descendantAddedConnection:Disconnect()
+            descendantAddedConnection = nil
+        end
+        if descendantRemovingConnection then
+            descendantRemovingConnection:Disconnect()
+            descendantRemovingConnection = nil
+        end
+
+        -- Unbind update function
+        RunService:UnbindFromRenderStep("UpdateNPCESP")
+
+        -- Destroy all highlights
         for model in pairs(NPC_Highlights) do
             RemoveHighlight(model)
         end
-        workspace.DescendantAdded:Disconnect(OnDescendantAdded)
-        workspace.DescendantRemoving:Disconnect(OnDescendantRemoving)
-        RunService:UnbindFromRenderStep("UpdateNPCESP")
-
-        
     end
 end
 
 -- Connect button click to toggle ESP and indicator
 toggleButton.MouseButton1Click:Connect(ToggleESP)
+
 
 
 
