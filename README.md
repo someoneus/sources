@@ -1,4 +1,4 @@
-# violet vex
+# violet vex (in-dev)
 violet vex 1.0 is a experimental gui containing exploit for roblox, expect bugs
 
 please keep in note that i didn't add any safety measures to the code,
